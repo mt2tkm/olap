@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 from fasionec import data
-from olap_basic import Olap
+from noopt import Olap
 
 if __name__ == "__main__":
     #データベース関連の指定
-    db,table,data_set = data()
+    db,table,data_set,a = data()
 
     top_k = 9
 
