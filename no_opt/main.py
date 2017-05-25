@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from fasionec import data
-from noopt import Olap
+from noopt import SerchSubset
 
 if __name__ == "__main__":
     #データベース関連の指定
@@ -8,5 +8,5 @@ if __name__ == "__main__":
 
     top_k = 9
 
-    framework = Olap(db,table,top_k)
+    framework = SerchSubset(db,table,top_k)
     framework.main()
