@@ -4,6 +4,10 @@ from config import config_data
 import matplotlib.pyplot as plt
 import pandas as pd
 
+"""課題点
+    ・x_axisの個数が違う場合の乖離度について考慮されていない
+"""
+
 class SerchSubset:
     query_time, calc_time, visualization_time =  0, 0, 0
     top_k = {}
@@ -20,7 +24,7 @@ class SerchSubset:
     def input_terms(self):
         self.x_axis, self.y_axis, self.func = input('Input x_axis ->'), input('Input y_axis ->'), input('Input aggregate func ->')
         #self.subset = input('')
-        self.subset = '性別,商品カテゴリ小'
+        self.subset = '性別,商品カテゴリ大'
 
     def entire_query(self):
         # make query
@@ -62,42 +66,35 @@ class SerchSubset:
         # normalize entire data
         a_time = time.time()
         entire_dt = self.entire / self.entire.sum()
-        calc_time += time.time() - a_time
-
-        print('chaek1')
+        self.calc_time += time.time() - a_time
 
         # get number of repetitions
         a_time = time.time()
-        query = 'select ' + self.subset + ' from ' + self,table + ' group by ' + self.subset
+        query = 'select ' + self.subset + ' from ' + self.table + ' group by ' + self.subset
         dd = pd.io.sql.read_sql(query,self.con)
-        self.query_time　+= time.time() - a_time
+        self.query_time += time.time() - a_time
         if ',' in self.subset:
             colum = self.subset.split(',')
         else:
             colum = [self.subset]
 
-        print('chaek2')
-
         for i in range(len(dd)):
             condition = str()
             for j in range(len(colum)):
                 if j ==0:
-                    condition += str(colum[j]) + ' = ' + str(dd.ix[i][j])
+                    condition += str(colum[j]) + " = '" + str(dd.ix[i][j]) + "'"
                 else:
-                    condition += ' and ' str(colum[j]) + ' = ' + str(dd.ix[i][j])
+                    condition += ' and ' + str(colum[j]) + " = '" + str(dd.ix[i][j]) + "'"
             a_time = time.time()
-
-            print('chaek3')
-
             self.query(condition)
-            self.query_time　+= time.time() - a_time
+            self.query_time += time.time() - a_time
 
             # calclate distance
             a_time = time.time()
             dev = self.distance(entire_dt)
 
             # cheak whether in top-k or not
-            z = (dev,)
+            z = (float(dev),)
             for j in range(len(colum)):
                 z += (str(dd.ix[i][j]),)
             self.cheak_k(z)
@@ -118,22 +115,81 @@ class SerchSubset:
                     self.top_k[i] = z
                     z = j
 
-    def visulalize(self):
-        print(9)
+    def visualize(self):
+        n = math.ceil(np.sqrt(self.k))
+        m = math.ceil(self.k / n)
+        fig, axes = plt.subplots(nrows=n, ncols=m, figsize=(10, 8))
+        ii = 0
+        dt1 = self.entire / self.entire.sum()
+        for abc,dt in self.top_k.items():
+            query = 'select ' + self.subset + ' from ' + self.table + ' group by ' + self.subset
+            dd = pd.io.sql.read_sql(query, self.con)
+            if ',' in self.subset:
+                colum = self.subset.split(',')
+            else:
+                colum = [self.subset]
+            condition = str()
+            for j in range(len(colum)):
+                if j == 0:
+                    condition += str(colum[j]) + " = '" + dt[j+1] + "'"
+                else:
+                    condition += ' and ' + str(colum[j]) + " = '" + dt[j+1] + "'"
+            self.query(condition)
+            dt2 = self.sub / self.sub.sum()
+            t1, t2 = dt1.to_dict()[''], dt2.to_dict()['']
+            x_agre = list()
+            for i in t1.keys():
+                if i !='':
+                    x_agre.append(i)
+            for i in t2.keys():
+                if i not in x_agre and i != '':
+                    x_agre.append(i)
+            x, y1, y2 = [i for i in range(0, len(x_agre))], list(), list()
+            for i in x_agre:
+                if i in t1.keys():
+                    y1.append(t1[i])
+                else:
+                    y1.append(0)
+                if i in t2.keys():
+                    y2.append(t2[i])
+                else:
+                    y2.append(0)
+
+            axes[int(ii/m), ii%m].plot(x, y1, linewidth=2)
+            axes[int(ii/m), ii%m].plot(x, y2, linewidth=2)
+            axes[int(ii/m), ii%m].set_xticks(x)
+            axes[int(ii/m), ii%m].set_xticklabels(x_agre, rotation=30)
+            axes[int(ii/m), ii%m].set_title(ii)
+            #axes[int(ii/m), ii%m].set_xlabel(self.attribute2)
+            axes[int(ii/m), ii%m].grid(True)
+            ii+=1
+            if ii > self.k:
+                break
+
+        """
+        plt.show()
+        plt.savefig('sample.png')
+        """
 
     def output(self):
+        print('================================================================')
         print('          All time : ',time.time() - self.start)
         print('        Query time : ',self.query_time)
         print('   Calclation time : ',self.calc_time)
         print('Visualization time : ',self.visualization_time)
-
+        print('================================================================')
+        print('順位, 乖離度, (集計関数, 集計属性, 集約属性)')
+        print('================================================================')
+        for i,j in self.top_k.items():
+            print(i+1,j[0],j[1],j[2])
+        print('================================================================')
 
     def main(self):
         a_time = time.time()
         self.entire_query()
-        query_time += time.time() - a_time
+        self.query_time += time.time() - a_time
         self.roop()
         a_time = time.time()
-        self.visulalize()
+        self.visualize()
         self.visualization_time += time.time() - a_time
         self.output()
