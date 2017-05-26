@@ -4,22 +4,26 @@ from config import config_data
 import matplotlib.pyplot as plt
 import pandas as pd
 
-"""課題点
+"""
+（課題点）
+    ・対象データの属性に'数量'の意味のデータが'数量'という名称で入っていること
     ・x_axisの個数が違う場合の乖離度について考慮されていない
-    ・部分データの粒度（？）をユーザが指定しているため、データによって変更する必要がある
+    ・function(fullshare_query)で'数量'という名前の属性があることを前提としている（＋　平均を計算する箇所がよくない書き方）
+    ・集約関数の対象数がデータによって変化するのに、それが考慮されていない
 """
 
 class SerchSubset:
     query_time, calc_time, visualization_time =  0, 0, 0
     top_k = {}
-    def __init__(self,db,table,k):
-        #Initialization
+    def __init__(self,db,groupby,table,k,aggregate):
+        ## Initialization
         self.db, self.table, self.k = db,table,k
-        #connect db
+        self.groupby, self.groupby = groupby, aggregate
+        ## connect db
         self.con = config_data(db)
-        #input x_axis,y_axis
+        ## input x_axis,y_axis
         self.input_terms()
-        #timer start
+        ## timer start
         self.start = time.time()
 
     def input_terms(self):
@@ -27,81 +31,54 @@ class SerchSubset:
         #self.subset = input('')
         self.subset = '性別,商品カテゴリ大'
 
-    def entire_query(self):
-        # make query
-        query = str()
-        query += ' select ' + self.x_axis + ', '
-        if self.func == 'sum':
-            query += self.func + '(' + 'CAST(' + self.y_axis + ' AS BIGINT' + '))'
-        else:
-            query += self.func + '(' + self.y_axis + ')'
-        query += ' from ' + self.table
-        query += ' group by  ' + self.x_axis
-
-        # execute query
-        self.entire = pd.io.sql.read_sql(query,self.con).groupby(self.x_axis).sum()
-
-    def query(self,conditions):
-        # make query
-        query = str()
-        query += ' select ' + self.x_axis + ', '
-        if self.func == 'sum':
-            query += self.func + '(' + 'CAST(' + self.y_axis + ' AS BIGINT' + '))'
-        else:
-            query += self.func + '(' + self.y_axis + ')'
-        query += ' from ' + self.table
-        query += ' where ' + conditions
-        query += ' group by ' + self.x_axis  + ' order by ' + self.x_axis
-        # execute subset query
-        self.sub = pd.io.sql.read_sql(query,self.con).groupby(self.x_axis).sum()
-
+    def fullshare_query(self):
+        ## make fullshare_query
+        g_b = str()
+        for group in self.groupby:
+            g_b += group + ', '
+        select = 'select ' + g_b
+        """
+        （課題点）
+        対象データの属性に'数量'の意味のデータが'数量'という名称で入っていること
+        """
+        for agg in self.aggregate:
+            if '数量' in agg:
+                select = select + 'sum(CAST(' + agg + ' AS BIGINT)) AS ' + agg.split('.')[1] + ', '
+            else:
+                select = select + 'sum(CAST(' + agg + ' AS BIGINT)) AS ' + agg.split('.')[1] + ', avg(CAST(' + agg.split('.')[1] + '/[OrderDetail].数量 AS BIGINT)) AS 平均' + agg.split('.')[1] + ', '
+        select = select[:-2]
+        full_query = select + ' from ' + self.table + ' group by ' + g_b[:-2] + ' order by ' + g_b[:-2]
+        #print(full_query)
+        ## execute fullshare_query and put in DataFrame
+        self.df = pd.io.sql.read_sql(full_query,self.con)
 
     def distance(self,entire_dt):
         d = 0
-        # normalize subset data
+        ## normalize subset data
         subset_dt = self.sub / self.sub.sum()
         d = np.fabs(entire_dt - subset_dt).sum()
         return d
 
     def roop(self):
-        # normalize entire data
-        a_time = time.time()
-        entire_dt = self.entire / self.entire.sum()
-        self.calc_time += time.time() - a_time
+        dt = self.df
+        entire = dt.groupby(self.x_axis).sum() / dt.groupby(self.x_axis).sum().sum()
 
-        # get number of repetitions
-        a_time = time.time()
-        query = 'select ' + self.subset + ' from ' + self.table + ' group by ' + self.subset
-        dd = pd.io.sql.read_sql(query,self.con)
-        self.query_time += time.time() - a_time
-        if ',' in self.subset:
-            colum = self.subset.split(',')
-        else:
-            colum = [self.subset]
-
-        for i in range(len(dd)):
-            condition = str()
-            for j in range(len(colum)):
-                if j ==0:
-                    condition += str(colum[j]) + " = '" + str(dd.ix[i][j]) + "'"
-                else:
-                    condition += ' and ' + str(colum[j]) + " = '" + str(dd.ix[i][j]) + "'"
-            a_time = time.time()
-            self.query(condition)
-            self.query_time += time.time() - a_time
-
-            # calclate distance
-            a_time = time.time()
-            dev = self.distance(entire_dt)
-
-            # cheak whether in top-k or not
-            z = (float(dev),)
-            for j in range(len(colum)):
-                z += (str(dd.ix[i][j]),)
-            self.cheak_k(z)
-            self.calc_time += time.time() - a_time
+        ## get number of repetitior
+        condition = self.subset.split(',')
+        gb = dt.groupby(condition).sum()
+        for i in range(len(gb)):
+            where = list()
+            for j in range(len(condition)):
+                where.append((dt[condition[j]]==gb[i][j]))
+            s_dt = dt[ where[0] & where[1] ].groupby(self.x_axis).sum().iloc[:,-5:][self.y_axis]
+            devi = np.fabs(s_dt / s_dt.sum() - entire)
+            z = (devi, )
+            for j in range(len(condition)):
+                z += (gb[i][j],)
+            self.cheak_k( z )
 
     def cheak_k(self,z):
+        # z = (Deviance, conditions)
         if len(self.top_k) == 0:
             self.top_k[0] = z
         elif len(self.top_k) < self.k:
@@ -179,18 +156,28 @@ class SerchSubset:
         print('   Calclation time : ',self.calc_time)
         print('Visualization time : ',self.visualization_time)
         print('================================================================')
-        print('順位, 乖離度,')
+        print('順位, 乖離度, (集計関数, 集計属性, 集約属性)')
         print('================================================================')
         for i,j in self.top_k.items():
             print(i+1,j[0],j[1],j[2])
         print('================================================================')
 
     def main(self):
-        a_time = time.time()
-        self.entire_query()
-        self.query_time += time.time() - a_time
+        ## query phase
+        a = time.time()
+        self.fullshare_query()
+        self.query_time = time.time() - a
+        """
+        ## calculate phase
+        a = time.time()
         self.roop()
-        a_time = time.time()
-        self.visualize()
-        self.visualization_time += time.time() - a_time
+        self.calc_time = time.time() - a
+        """
+        """
+        ## visualization phase
+        a = time.time()
+        self.visualization()
+        self.visualization_time = time.time() - a
+        """
+        ## output phase
         self.output()
