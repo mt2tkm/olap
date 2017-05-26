@@ -18,7 +18,7 @@ class SerchSubset:
     def __init__(self,db,groupby,table,k,aggregate):
         ## Initialization
         self.db, self.table, self.k = db,table,k
-        self.groupby, self.groupby = groupby, aggregate
+        self.groupby, self.aggregate = groupby, aggregate
         ## connect db
         self.con = config_data(db)
         ## input x_axis,y_axis
@@ -61,20 +61,22 @@ class SerchSubset:
 
     def roop(self):
         dt = self.df
-        entire = dt.groupby(self.x_axis).sum() / dt.groupby(self.x_axis).sum().sum()
+        entire = dt.groupby(self.x_axis).sum()[self.y_axis] / dt.groupby(self.x_axis).sum()[self.y_axis].sum()
 
         ## get number of repetitior
         condition = self.subset.split(',')
         gb = dt.groupby(condition).sum()
         for i in range(len(gb)):
             where = list()
+
             for j in range(len(condition)):
-                where.append((dt[condition[j]]==gb[i][j]))
+                where.append((dt[condition[j]]==gb.index[i][j]))
             s_dt = dt[ where[0] & where[1] ].groupby(self.x_axis).sum().iloc[:,-5:][self.y_axis]
-            devi = np.fabs(s_dt / s_dt.sum() - entire)
+            devi = np.fabs(s_dt / s_dt.sum() - entire).sum()
+
             z = (devi, )
             for j in range(len(condition)):
-                z += (gb[i][j],)
+                z += (gb.index[i][j],)
             self.cheak_k( z )
 
     def cheak_k(self,z):
@@ -167,12 +169,12 @@ class SerchSubset:
         a = time.time()
         self.fullshare_query()
         self.query_time = time.time() - a
-        """
+
         ## calculate phase
         a = time.time()
         self.roop()
         self.calc_time = time.time() - a
-        """
+
         """
         ## visualization phase
         a = time.time()
