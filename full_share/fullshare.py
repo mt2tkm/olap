@@ -56,7 +56,7 @@ class SerchSubset:
         d = 0
         ## normalize subset data
         subset_dt = self.sub / self.sub.sum()
-        d = np.fabs(entire_dt - subset_dt).sum()
+        d = np.fabs(entire_dt - subset_dt).fillna(0).sum()
         return d
 
     def roop(self):
