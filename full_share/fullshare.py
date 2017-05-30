@@ -28,7 +28,9 @@ class SerchSubset:
 
     def input_terms(self):
         self.x_axis, self.y_axis, self.func = input('Input x_axis ->'), input('Input y_axis ->'), input('Input aggregate func ->')
-        #self.subset = input('')
+        """
+        ＠部分データの指定箇所
+        """
         self.subset = '性別,商品カテゴリ大'
 
     def fullshare_query(self):
@@ -48,7 +50,7 @@ class SerchSubset:
                 select = select + 'sum(CAST(' + agg + ' AS BIGINT)) AS ' + agg.split('.')[1] + ', avg(CAST(' + agg.split('.')[1] + '/[OrderDetail].数量 AS BIGINT)) AS 平均' + agg.split('.')[1] + ', '
         select = select[:-2]
         full_query = select + ' from ' + self.table + ' group by ' + g_b[:-2] + ' order by ' + g_b[:-2]
-        #print(full_query)
+
         ## execute fullshare_query and put in DataFrame
         self.df = pd.io.sql.read_sql(full_query,self.con)
 
@@ -68,15 +70,14 @@ class SerchSubset:
         gb = dt.groupby(condition).sum()
         for i in range(len(gb)):
             where = list()
-
             for j in range(len(condition)):
                 where.append((dt[condition[j]]==gb.index[i][j]))
             s_dt = dt[ where[0] & where[1] ].groupby(self.x_axis).sum().iloc[:,-5:][self.y_axis]
             devi = np.fabs(s_dt / s_dt.sum() - entire).sum()
-
             z = (devi, )
             for j in range(len(condition)):
                 z += (gb.index[i][j],)
+            ## cheak whether this result in top-k
             self.cheak_k( z )
 
     def cheak_k(self,z):
@@ -145,7 +146,6 @@ class SerchSubset:
             ii+=1
             if ii > self.k:
                 break
-
         """
         plt.show()
         plt.savefig('sample.png')
@@ -175,11 +175,11 @@ class SerchSubset:
         self.roop()
         self.calc_time = time.time() - a
 
-        """
+
         ## visualization phase
         a = time.time()
         self.visualization()
         self.visualization_time = time.time() - a
-        """
+
         ## output phase
         self.output()

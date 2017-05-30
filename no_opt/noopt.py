@@ -24,7 +24,9 @@ class SerchSubset:
 
     def input_terms(self):
         self.x_axis, self.y_axis, self.func = input('Input x_axis ->'), input('Input y_axis ->'), input('Input aggregate func ->')
-        #self.subset = input('')
+        """
+        ＠部分データの指定箇所
+        """
         self.subset = '性別,商品カテゴリ大'
 
     def entire_query(self):
@@ -166,7 +168,6 @@ class SerchSubset:
             ii+=1
             if ii > self.k:
                 break
-
         """
         plt.show()
         plt.savefig('sample.png')
@@ -186,11 +187,15 @@ class SerchSubset:
         print('================================================================')
 
     def main(self):
+        ## make query and execute it
         a_time = time.time()
         self.entire_query()
         self.query_time += time.time() - a_time
+        ##
         self.roop()
         a_time = time.time()
+        ## visualization (make a figure)
         self.visualize()
         self.visualization_time += time.time() - a_time
+        ## output the top_k and some times
         self.output()
